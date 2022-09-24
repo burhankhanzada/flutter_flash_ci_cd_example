@@ -1,0 +1,88 @@
+workflows:
+  android-workflow:
+    name: Android Workflow
+
+    environment:
+      groups:
+        - keystore_credentials
+        - github
+        - firebase
+
+    triggering:
+      events:
+        - tag
+
+      cancel_previous_builds: true
+
+      branch_patterns:
+        - pattern: '*'
+          include: true
+          source: true
+
+      tag_patterns:
+        - pattern: '*'
+          include: true
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/.gradle/caches
+
+    scripts:
+      - name: Setup keystores
+        script: bash scripts/android/setup_keystores.sh
+
+      - name: Setup local.properties
+        script: bash scripts/android/setup_local_properties.sh
+
+      - name: Setup key.properties
+        script: bash scripts/android/setup_key_properties.sh
+
+      - name: Setup google_services.json
+        script: bash scripts/android/setup_google_services_json.sh
+
+      - name: Setup firebase_options.dart
+        script: bash scripts/flutter/setup_firebase_options_dart.sh
+
+      - name: Get Flutter packages
+        script: flutter packages pub get
+
+      - name: Generate files
+        script: flutter pub run build_runner build
+
+      - name: Build APK
+        script: flutter build apk
+
+      - name: Build AAB
+        script: flutter build appbundle
+
+      - name: Versioned name binaries
+        script: bash scripts/android/versioned_name_binaries.sh
+
+      - name: Release on github
+        script: bash scripts/release_on_github.sh
+
+    artifacts:
+      - build/**/outputs/flutter-apk/**/*.apk
+      - build/**/outputs/bundle/**/*.aab
+      - build/**/outputs/**/mapping.txt
+
+    publishing:
+      firebase:
+        firebase_token: $FIREBASE_TOKEN
+        android:
+          app_id: $FIREBASE_ANDROID_ADMIN_ID
+          groups:
+            - all
+          artifact_type: 'apk'
+        android:
+          app_id: $FIREBASE_ANDROID_USER_ID
+          groups:
+            - all
+          artifact_type: 'apk'
+
+      google_play:
+          credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+          track: internal
+          rollout_fraction: 0.25
+          submit_as_draft: true 
